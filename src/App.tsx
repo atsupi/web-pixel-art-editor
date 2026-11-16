@@ -2,8 +2,8 @@
 import React, { useState, useRef } from 'react';
 import {
   DEFAULT_PALETTE,
-  EncodingFormat,
-  PixelArtData,
+  type EncodingFormat,
+  type PixelArtData,
   encodePixels,
   decodePixels,
 } from './utils/encoder';
