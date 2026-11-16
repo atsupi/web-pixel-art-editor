@@ -13,7 +13,7 @@ describe('App', () => {
   it('clears the canvas', () => {
     render(<App />);
 
-    const clearButton = screen.getByRole('button', { name: /celar/i });
+    const clearButton = screen.getByRole('button', { name: /clear/i });
     fireEvent.click(clearButton);
 
     const pixels = screen.getAllByTestId(/pixel-/);
