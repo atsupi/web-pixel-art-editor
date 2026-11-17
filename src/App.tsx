@@ -75,6 +75,7 @@ export function App() {
         setEncoding(parsed.encoding);
         setPixels(decodedPixels);
       } catch (err) {
+        console.error('JSONの読み込みエラー:', err);
         alert('JSONファイルの読み込みに失敗しました。フォーマットを確認してください。');
       }
     };
