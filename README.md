@@ -6,10 +6,28 @@ PoC project to develop Web based Pixel Art Editor
 
 ## ✨ Features
 
-* **Pixel Drawing**: Click or drag on the grid canvas to draw individual pixels intuitively.
-* **Clear Canvas**: Instantly reset the entire canvas with a single click to start fresh.
-* **Custom Data Encoding**: Efficiently encodes and decodes pixel grid data (`encoder.ts`) for lightweight state representation and data sharing.
+* **32x32 Pixel Canvas**: Intuitive click-and-drag drawing across a 1,024-pixel grid, with a single-click **Clear** action to reset the canvas.
+* **Customizable 16-Color Palette**: Select from 16 indexed colors and customize any palette slot in real time using native color pickers.
+* **Structured JSON Export & Import**: Save and reload artwork—including sprite name, comments, custom palette, and pixel data—as portable `.json` files.
+* **Dual Encoding Formats**: Choose between **Hex** (1,024 chars) for human-readable inspection or **Base64** (684 chars) for compact storage.
 
+---
+
+## 📦 JSON Data Format
+
+Exported files follow a clean, self-contained JSON schema:
+
+```json
+{
+  "name": "untitled_sprite",
+  "comment": "Created with 32x32 Pixel Art Editor",
+  "width": 32,
+  "height": 32,
+  "palette": ["#000000", "#FFFFFF", "... (16 hex colors)"],
+  "encoding": "base64",
+  "data": "..."
+}
+```
 
 ## 🛠 Tech Stack
 
