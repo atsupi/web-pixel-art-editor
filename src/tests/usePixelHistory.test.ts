@@ -1,7 +1,7 @@
 // src/test/usePixelHistory.test.ts
 import { describe, it, expect } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
-import { usePixelHistory, arePixelsEqual } from '../hook/usePixelHistory';
+import { usePixelHistory, arePixelsEqual } from '../hooks/usePixelHistory';
 
 // テスト用の1024要素配列ヘルパー
 const createBoard = (fillValue = 0): number[] => Array(1024).fill(fillValue);
