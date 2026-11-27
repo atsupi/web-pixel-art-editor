@@ -1,5 +1,5 @@
 // src/App.tsx
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   DEFAULT_PALETTE,
   type EncodingFormat,
@@ -7,25 +7,77 @@ import {
   encodePixels,
   decodePixels,
 } from './utils/encoder';
+import { usePixelHistory } from './hooks/usePixelHistory';
 
 export function App() {
-  const [pixels, setPixels] = useState<number[]>(() => Array(1024).fill(0));
+  const { pixels, canUndo, canRedo, commit, undo, redo } = usePixelHistory(
+    Array(1024).fill(0)
+  );
+
+  // ドラッグ中のリアルタイム描画用バッファ（nullのときは確定済みの pixels を表示）
+  const [draftPixels, setDraftPixels] = useState<number[] | null>(null);
+  const draftPixelsRef = useRef<number[] | null>(null);
+  const isDrawingRef = useRef<boolean>(false);
+
   const [palette, setPalette] = useState<string[]>(DEFAULT_PALETTE);
   const [selectedColor, setSelectedColor] = useState<number>(8); // 初期選択: 赤
   const [name, setName] = useState<string>('untitled_sprite');
   const [comment, setComment] = useState<string>('');
   const [encoding, setEncoding] = useState<EncodingFormat>('hex');
-  const [isDrawing, setIsDrawing] = useState<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const paintPixel = (index: number) => {
-    setPixels((prev) => {
-      if (prev[index] === selectedColor) return prev;
-      const next = [...prev];
-      next[index] = selectedColor;
-      return next;
-    });
+  // 表示用の盤面（ドラッグ中は仮盤面、通常時は履歴の現在盤面）
+  const displayPixels = draftPixels ?? pixels;
+
+  /**
+   * 描画ストロークの開始（MouseDown）
+   */
+  const startStroke = (index: number) => {
+    isDrawingRef.current = true;
+    const next = [...pixels];
+    next[index] = selectedColor;
+    draftPixelsRef.current = next;
+    setDraftPixels(next);
   };
+
+  /**
+   * ドラッグ中の連続描画（MouseEnter）
+   * 履歴スタックは更新せず、仮盤面のみ高速に更新する
+   */
+  const continueStroke = (index: number) => {
+    if (!isDrawingRef.current || !draftPixelsRef.current) return;
+    if (draftPixelsRef.current[index] === selectedColor) return;
+
+    const next = [...draftPixelsRef.current];
+    next[index] = selectedColor;
+    draftPixelsRef.current = next;
+    setDraftPixels(next);
+  };
+
+  /**
+   * 描画ストロークの終了と履歴への確定（MouseUp）
+   */
+  const finishStroke = useCallback(() => {
+    if (!isDrawingRef.current) return;
+    isDrawingRef.current = false;
+
+    const finalDraft = draftPixelsRef.current;
+    draftPixelsRef.current = null;
+    setDraftPixels(null);
+
+    if (finalDraft) {
+      // 開始前と差分がある場合のみ履歴スタックに積まれる
+      commit(finalDraft);
+    }
+  }, [commit]);
+
+  // キャンバス外でマウスを離した際も確実にストロークを確定させる
+  useEffect(() => {
+    window.addEventListener('mouseup', finishStroke);
+    return () => {
+      window.removeEventListener('mouseup', finishStroke);
+    };
+  }, [finishStroke]);
 
   const handlePaletteColorChange = (index: number, newHex: string) => {
     setPalette((prev) => {
@@ -73,21 +125,23 @@ export function App() {
         setComment(parsed.comment || '');
         setPalette(parsed.palette);
         setEncoding(parsed.encoding);
-        setPixels(decodedPixels);
+        // Import前の盤面もUndoで戻せるように commit を使用
+        commit(decodedPixels);
       } catch (err) {
         console.error('JSONの読み込みエラー:', err);
         alert('JSONファイルの読み込みに失敗しました。フォーマットを確認してください。');
       }
     };
     reader.readAsText(file);
-    e.target.value = ''; // 同じファイルを再選択可能にする
+    e.target.value = '';
+  };
+
+  const handleClear = () => {
+    commit(Array(1024).fill(0));
   };
 
   return (
-    <div
-      style={{ fontFamily: 'sans-serif', maxWidth: '800px', margin: '20px auto', padding: '0 16px' }}
-      onMouseUp={() => setIsDrawing(false)}
-    >
+    <div style={{ fontFamily: 'sans-serif', maxWidth: '800px', margin: '20px auto', padding: '0 16px' }}>
       <h1>32x32 Pixel Art Editor</h1>
 
       <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap' }}>
@@ -104,17 +158,12 @@ export function App() {
             cursor: 'crosshair',
           }}
         >
-          {pixels.map((colorIdx, idx) => (
+          {displayPixels.map((colorIdx, idx) => (
             <div
               key={idx}
               data-testid={`pixel-${idx}`}
-              onMouseDown={() => {
-                setIsDrawing(true);
-                paintPixel(idx);
-              }}
-              onMouseEnter={() => {
-                if (isDrawing) paintPixel(idx);
-              }}
+              onMouseDown={() => startStroke(idx)}
+              onMouseEnter={() => continueStroke(idx)}
               style={{
                 width: '14px',
                 height: '14px',
@@ -207,6 +256,26 @@ export function App() {
             </label>
           </div>
 
+          {/* 履歴操作（Phase 2: ボタン配置、Phase 3 でショートカット追加） */}
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button
+              type="button"
+              onClick={undo}
+              disabled={!canUndo}
+              style={{ padding: '6px 12px', flex: 1 }}
+            >
+              Undo
+            </button>
+            <button
+              type="button"
+              onClick={redo}
+              disabled={!canRedo}
+              style={{ padding: '6px 12px', flex: 1 }}
+            >
+              Redo
+            </button>
+          </div>
+
           {/* アクションボタン */}
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
             <button type="button" onClick={handleExportJson} style={{ padding: '8px 16px', fontWeight: 'bold' }}>
@@ -217,7 +286,7 @@ export function App() {
             </button>
             <button
               type="button"
-              onClick={() => setPixels(Array(1024).fill(0))}
+              onClick={handleClear}
               style={{ padding: '8px 16px', marginLeft: 'auto' }}
             >
               Clear
